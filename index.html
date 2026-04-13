@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Fourier Epicycles: Image Drawing Animation (Fixed Canvas Bounds)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(145deg, #101418 0%, #0b0e14 100%);
+            font-family: 'Segoe UI', 'Poppins', 'Roboto', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .card {
+            background: rgba(22, 28, 38, 0.85);
+            backdrop-filter: blur(2px);
+            border-radius: 2.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.8rem;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .control-panel {
+            flex: 1.2;
+            min-width: 260px;
+            background: #1e2532cc;
+            border-radius: 2rem;
+            padding: 1.2rem 1.5rem;
+            backdrop-filter: blur(4px);
+            border: 1px solid #2e3a48;
+        }
+
+        .canvas-area {
+            flex: 2.5;
+            min-width: 500px;
+            background: #0f121acc;
+            border-radius: 2rem;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0 0 0.5rem 0;
+            background: linear-gradient(135deg, #d9e2f0, #9ab3d5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+
+        .sub {
+            color: #8e9eae;
+            font-size: 0.8rem;
+            margin-bottom: 1.2rem;
+            border-left: 3px solid #3e6b9b;
+            padding-left: 0.7rem;
+        }
+
+        button, .file-label {
+            background: #2c3e4e;
+            border: none;
+            color: white;
+            padding: 10px 18px;
+            margin: 6px 6px 6px 0;
+            border-radius: 60px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: monospace;
+            font-size: 0.85rem;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        button:hover, .file-label:hover {
+            background: #3e5a6e;
+            transform: scale(0.97);
+        }
+
+        .primary-btn {
+            background: #2c5a6e;
+            box-shadow: 0 0 6px #3f8db0;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 12px 0;
+            background: #2e3b42;
+            height: 3px;
+            border-radius: 5px;
+        }
+
+        .info-text {
+            font-size: 0.75rem;
+            color: #b9c7d9;
+            margin-top: 12px;
+            background: #00000033;
+            padding: 6px 10px;
+            border-radius: 18px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 24px;
+            box-shadow: 0 12px 28px black;
+            background: #03060b;
+            width: 100%;
+            height: auto;
+            cursor: pointer;
+        }
+
+        .status {
+            font-family: monospace;
+            background: #01010166;
+            padding: 6px 12px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            color: #bbd9ff;
+            margin-top: 8px;
+        }
+
+        .flex-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: space-between;
+        }
+
+        hr {
+            border-color: #2a3a46;
+            margin: 1rem 0;
+        }
+        
+        .badge {
+            font-size: 0.7rem;
+            background: #00000055;
+            border-radius: 30px;
+            padding: 3px 8px;
+        }
+        
+        @media (max-width: 780px) {
+            .canvas-area { min-width: 300px; }
+            .control-panel { min-width: 240px; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="container">
+        <div class="control-panel">
+            <h2>🌀 Fourier Epicycles</h2>
+            <div class="sub">Rotating circles · draw any image contour</div>
+            <div class="file-label" style="background:#2e4b62; text-align:center; cursor:pointer;">
+                📁 Upload Image (PNG/JPG)
+                <input type="file" id="imageUpload" accept="image/jpeg, image/png, image/jpg" style="display: none;">
+            </div>
+            <button id="btnLoadDemo">🖼️ Load Demo (Star)</button>
+            <button id="btnLoadCircleDemo">⚪ Load Demo (Circle)</button>
+            <div class="flex-row">
+                <span style="font-size:0.8rem;">⚡ Speed</span>
+                <input type="range" id="speedSlider" min="0.2" max="2.5" step="0.01" value="1.0">
+                <span id="speedVal" class="badge">1.0x</span>
+            </div>
+            <div class="flex-row">
+                <span style="font-size:0.8rem;">✏️ Epicycles (10-200)</span>
+                <input type="range" id="coeffSlider" min="10" max="200" step="1" value="80">
+                <span id="coeffVal" class="badge">80</span>
+            </div>
+            <div class="flex-row">
+                <span style="font-size:0.8rem;">🖌️ Trail Length</span>
+                <input type="range" id="trailSlider" min="20" max="400" step="1" value="150">
+                <span id="trailVal" class="badge">150</span>
+            </div>
+            <div class="flex-row">
+                <span style="font-size:0.8rem;">📏 Scale (fit to canvas)</span>
+                <input type="range" id="scaleSlider" min="0.4" max="0.95" step="0.01" value="0.75">
+                <span id="scaleVal" class="badge">0.75</span>
+            </div>
+            <div class="flex-row">
+                <span style="font-size:0.8rem;">🔍 Zoom</span>
+                <input type="range" id="zoomSlider" min="0.3" max="3.0" step="0.05" value="1.0">
+                <span id="zoomVal" class="badge">1.0×</span>
+            </div>
+            <button id="resetViewBtn">⟳ Reset Animation</button>
+            <button id="exportBtn" class="primary-btn">⬇ Save as Video / GIF</button>
+            <div id="exportPanel" style="display:none; margin-top:8px; background:#00000033; border-radius:16px; padding:10px 12px;">
+                <div style="font-size:0.78rem; color:#9ab3d5; margin-bottom:8px;">Record one full animation cycle:</div>
+                <div class="flex-row" style="gap:6px; flex-wrap:wrap;">
+                    <button id="recWebmBtn" style="flex:1; min-width:90px; background:#1e4a62;">🎬 WebM Video</button>
+                    <button id="recGifBtn" style="flex:1; min-width:90px; background:#3a2e62;">🌀 Animated GIF</button>
+                </div>
+                <div id="recProgress" style="display:none; margin-top:8px; font-size:0.75rem; color:#ffcf7a; text-align:center;"></div>
+            </div>
+            <div class="info-text">
+                ⚙️ <strong>How it works:</strong> Extracts image contour → Fourier transform → each rotating circle (epicycle) adds vectors. 
+                The endpoint draws the original shape. <span style="color:#ffaa66;">Presents by Gautam Parui</span>
+            </div>
+            <div class="status" id="statusMsg">⚪ Ready — upload an image or try demo</div>
+        </div>
+
+        <div class="canvas-area">
+            <canvas id="mainCanvas" width="800" height="600" style="width:100%; height:auto; max-width:800px; aspect-ratio:800/600"></canvas>
+            <div class="flex-row" style="justify-content: center; margin-top: 12px;">
+                <span class="badge">🔘 Orange dot = drawing pen</span>
+                <span class="badge">🎡 Circles stay on screen</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ----- DOM elements -----
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('imageUpload');
+        const loadDemoBtn = document.getElementById('btnLoadDemo');
+        const loadCircleBtn = document.getElementById('btnLoadCircleDemo');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedVal = document.getElementById('speedVal');
+        const coeffSlider = document.getElementById('coeffSlider');
+        const coeffVal = document.getElementById('coeffVal');
+        const trailSlider = document.getElementById('trailSlider');
+        const trailVal = document.getElementById('trailVal');
+        const scaleSlider = document.getElementById('scaleSlider');
+        const scaleVal = document.getElementById('scaleVal');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomVal = document.getElementById('zoomVal');
+        const resetBtn = document.getElementById('resetViewBtn');
+        const statusDiv = document.getElementById('statusMsg');
+
+        // canvas fixed dimensions
+        const width = 800, height = 600;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Global state
+        let animationId = null;
+        let time = 0;
+        let speed = 1.0;
+        let maxCoeffs = 80;
+        let trailLength = 150;
+        let userScale = 0.75;      // scale factor to keep drawing inside
+        let zoomLevel = 1.0;       // canvas zoom (applied via ctx transform)
+        let drawingPoints = [];
+        
+        // Fourier data
+        let complexCoeffsGlobal = [];
+        let originalPathRaw = [];
+        
+        // Centering and bounds correction
+        let shapeCenterX = width/2;
+        let shapeCenterY = height/2;
+        let shapeScale = 1.0;
+        
+        function setStatus(msg, isError = false) {
+            statusDiv.innerHTML = msg;
+            statusDiv.style.color = isError ? "#ffb7a7" : "#bbd9ff";
+        }
+        
+        // ---- Fourier computation from sampled points (closed contour) ----
+        function computeFourierCoeffs(points, numTerms) {
+            const N = points.length;
+            if (N === 0) return [];
+            
+            const K = Math.floor(numTerms / 2);
+            let allCoeffs = [];
+            
+            for (let k = -K; k <= K; k++) {
+                let sumX = 0, sumY = 0;
+                for (let j = 0; j < N; j++) {
+                    const angle = (2 * Math.PI * k * j) / N;
+                    const re = Math.cos(angle);
+                    const im = -Math.sin(angle);
+                    const px = points[j].x;
+                    const py = points[j].y;
+                    sumX += px * re - py * im;
+                    sumY += px * im + py * re;
+                }
+                const c_real = sumX / N;
+                const c_imag = sumY / N;
+                const amp = Math.hypot(c_real, c_imag);
+                const phase = Math.atan2(c_imag, c_real);
+                if (amp > 1e-5) {
+                    allCoeffs.push({ amp: amp, freq: k, phase: phase });
+                }
+            }
+            
+            // sort by amplitude descending (largest circles first for visual appeal)
+            allCoeffs.sort((a, b) => b.amp - a.amp);
+            
+            // limit to maxCoeffs count
+            return allCoeffs.slice(0, numTerms);
+        }
+        
+        // Get point at normalized time t (0..1) from Fourier coefficients
+        function getFourierPoint(t, coeffs, centerX, centerY) {
+            let x = 0, y = 0;
+            const angleBase = 2 * Math.PI * t;
+            for (let c of coeffs) {
+                const angle = angleBase * c.freq + c.phase;
+                const dx = c.amp * Math.cos(angle);
+                const dy = c.amp * Math.sin(angle);
+                x += dx;
+                y += dy;
+            }
+            return { x: centerX + x, y: centerY + y };
+        }
+        
+        // ---- Image contour extraction with edge detection ----
+        function extractContourFromImage(img, maxPoints = 400) {
+            return new Promise((resolve, reject) => {
+                const offCanvas = document.createElement('canvas');
+                const offCtx = offCanvas.getContext('2d');
+                let imgWidth = img.width;
+                let imgHeight = img.height;
+                const maxDim = 260;
+                let scale = Math.min(maxDim / imgWidth, maxDim / imgHeight);
+                const w = Math.floor(imgWidth * scale);
+                const h = Math.floor(imgHeight * scale);
+                offCanvas.width = w;
+                offCanvas.height = h;
+                offCtx.drawImage(img, 0, 0, w, h);
+                const imageData = offCtx.getImageData(0, 0, w, h);
+                const data = imageData.data;
+                
+                // Grayscale
+                const gray = new Uint8Array(w * h);
+                for (let i = 0; i < w * h; i++) {
+                    const r = data[i*4];
+                    const g = data[i*4+1];
+                    const b = data[i*4+2];
+                    gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+                }
+                
+                // Sobel edge detection
+                const grad = new Float32Array(w * h);
+                let maxGrad = 0;
+                for (let y = 1; y < h-1; y++) {
+                    for (let x = 1; x < w-1; x++) {
+                        const idx = y * w + x;
+                        const gx = (gray[(y+1)*w + (x+1)] + 2*gray[(y+1)*w + x] + gray[(y+1)*w + (x-1)]) -
+                                   (gray[(y-1)*w + (x+1)] + 2*gray[(y-1)*w + x] + gray[(y-1)*w + (x-1)]);
+                        const gy = (gray[(y+1)*w + (x+1)] + 2*gray[y*w + (x+1)] + gray[(y-1)*w + (x+1)]) -
+                                   (gray[(y+1)*w + (x-1)] + 2*gray[y*w + (x-1)] + gray[(y-1)*w + (x-1)]);
+                        let mag = Math.hypot(gx, gy);
+                        grad[idx] = mag;
+                        if (mag > maxGrad) maxGrad = mag;
+                    }
+                }
+                
+                const threshold = maxGrad * 0.22;
+                const binaryEdge = new Uint8Array(w * h);
+                for (let i = 0; i < w*h; i++) binaryEdge[i] = grad[i] > threshold ? 1 : 0;
+                
+                // Find first edge pixel
+                let startX = -1, startY = -1;
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        if (binaryEdge[y*w + x]) { startX = x; startY = y; break; }
+                    }
+                    if (startX !== -1) break;
+                }
+                if (startX === -1) reject(new Error("No edges found"));
+                
+                // Moore-neighbor contour tracing
+                let contour = [];
+                let curX = startX, curY = startY;
+                let dir = 7;
+                const dirs = [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+                let maxSteps = w * h * 2;
+                let steps = 0;
+                do {
+                    contour.push({ x: curX, y: curY });
+                    let found = false;
+                    for (let i = 0; i < 8; i++) {
+                        const nd = (dir + i) % 8;
+                        const nx = curX + dirs[nd][0];
+                        const ny = curY + dirs[nd][1];
+                        if (nx >= 0 && nx < w && ny >= 0 && ny < h && binaryEdge[ny*w + nx]) {
+                            curX = nx;
+                            curY = ny;
+                            dir = (nd + 5) % 8;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) break;
+                    steps++;
+                    if (steps > maxSteps || (curX === startX && curY === startY && contour.length > 20)) break;
+                } while (true);
+                
+                if (contour.length < 20) reject(new Error("Contour too small"));
+                
+                // Resample to maxPoints
+                let simplified = [];
+                const step = Math.max(1, Math.floor(contour.length / maxPoints));
+                for (let i = 0; i < contour.length; i += step) simplified.push(contour[i]);
+                if (simplified.length < 3) simplified = contour.slice(0, maxPoints);
+                
+                resolve(simplified);
+            });
+        }
+        
+        // ---- Initialize drawing from raw contour points (auto-center & scale) ----
+        function initFromRawPoints(rawPoints) {
+            if (!rawPoints || rawPoints.length < 5) {
+                setStatus("❌ Not enough contour points", true);
+                return false;
+            }
+            
+            // Find bounds of the raw contour
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let p of rawPoints) {
+                minX = Math.min(minX, p.x);
+                maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y);
+                maxY = Math.max(maxY, p.y);
+            }
+            const contourWidth = maxX - minX;
+            const contourHeight = maxY - minY;
+            const contourCenterX = (minX + maxX) / 2;
+            const contourCenterY = (minY + maxY) / 2;
+            
+            // Calculate scale to fit nicely within canvas (with margin)
+            const margin = 60;
+            const availableWidth = width - 2 * margin;
+            const availableHeight = height - 2 * margin;
+            let fitScale = Math.min(availableWidth / contourWidth, availableHeight / contourHeight);
+            // Apply user scale factor (additional control)
+            fitScale = fitScale * userScale;
+            
+            // Transform all points to canvas coordinates
+            const transformedPoints = rawPoints.map(p => ({
+                x: (p.x - contourCenterX) * fitScale + width/2,
+                y: (p.y - contourCenterY) * fitScale + height/2
+            }));
+            
+            // Store original transformed points for Fourier (they are already in canvas space, centered)
+            originalPathRaw = transformedPoints;
+            
+            // Compute Fourier coefficients from these points
+            complexCoeffsGlobal = computeFourierCoeffs(originalPathRaw, maxCoeffs);
+            
+            // Reset animation
+            time = 0;
+            drawingPoints = [];
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            setStatus(`✅ Loaded: ${originalPathRaw.length} contour points, ${complexCoeffsGlobal.length} epicycles. Drawing inside canvas.`);
+            animate();
+            return true;
+        }
+        
+        // ---- Process uploaded image through contour extraction ----
+        async function processImage(file) {
+            setStatus("⏳ Processing image: extracting outline...");
+            try {
+                const img = new Image();
+                const imgUrl = URL.createObjectURL(file);
+                img.src = imgUrl;
+                await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+                const rawContour = await extractContourFromImage(img, 380);
+                URL.revokeObjectURL(imgUrl);
+                if (rawContour.length < 10) throw new Error("Could not detect shape");
+                initFromRawPoints(rawContour);
+            } catch (err) {
+                console.error(err);
+                setStatus("⚠️ Edge detection failed. Try high-contrast image or use demo shapes.", true);
+            }
+        }
+        
+        // ---- Demo shapes (guaranteed to be inside canvas) ----
+        function loadDemoStar() {
+            setStatus("⭐ Loading star shape...");
+            const points = [];
+            const cx = 0, cy = 0;
+            const outerR = 220, innerR = 90;
+            const spikes = 5;
+            for (let i = 0; i <= 360; i += 5) {
+                let rad = i * Math.PI / 180;
+                let r;
+                const angleMod = (i % (360/spikes));
+                if (angleMod < 360/(spikes*2)) r = outerR;
+                else r = innerR;
+                const x = cx + Math.cos(rad) * r;
+                const y = cy + Math.sin(rad) * r;
+                points.push({ x: x, y: y });
+            }
+            initFromRawPoints(points);
+        }
+        
+        function loadDemoCircle() {
+            setStatus("⚪ Loading circle shape...");
+            const points = [];
+            const radius = 210;
+            for (let i = 0; i <= 360; i += 4) {
+                const rad = i * Math.PI / 180;
+                const x = Math.cos(rad) * radius;
+                const y = Math.sin(rad) * radius;
+                points.push({ x: x, y: y });
+            }
+            initFromRawPoints(points);
+        }
+        
+        // ---- Drawing animation (with bounds check but coefficients already bounded) ----
+        function drawFrame() {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = "#03060b";
+            ctx.fillRect(0, 0, width, height);
+
+            // Apply zoom centered on canvas
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+            ctx.scale(zoomLevel, zoomLevel);
+            ctx.translate(-width / 2, -height / 2);
+            
+            if (!complexCoeffsGlobal || complexCoeffsGlobal.length === 0) {
+                ctx.font = "18px monospace";
+                ctx.fillStyle = "#aaa";
+                ctx.fillText("⬆ Upload an image or click demo", width/2-180, height/2);
+                ctx.restore();
+                return;
+            }
+            
+            // Draw trailing path
+            if (drawingPoints.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = "#ffcf7a";
+                ctx.lineWidth = 2.8;
+                ctx.lineCap = "round";
+                ctx.shadowBlur = 4;
+                ctx.shadowColor = "#f0a030";
+                for (let i = 0; i < drawingPoints.length - 1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(drawingPoints[i].x, drawingPoints[i].y);
+                    ctx.lineTo(drawingPoints[i+1].x, drawingPoints[i+1].y);
+                    ctx.stroke();
+                }
+                ctx.shadowBlur = 0;
+            }
+            
+            // Draw epicycles (circles and connecting lines)
+            // Start from canvas center (0,0 in relative space) but we offset by center
+            let currentX = width/2;
+            let currentY = height/2;
+            const tVal = time;
+            
+            for (let i = 0; i < complexCoeffsGlobal.length; i++) {
+                const c = complexCoeffsGlobal[i];
+                const angle = 2 * Math.PI * tVal * c.freq + c.phase;
+                const dx = c.amp * Math.cos(angle);
+                const dy = c.amp * Math.sin(angle);
+                
+                // Draw circle
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, c.amp, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(80, 170, 230, 0.35)`;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+                
+                // Draw radius line
+                ctx.beginPath();
+                ctx.moveTo(currentX, currentY);
+                ctx.lineTo(currentX + dx, currentY + dy);
+                ctx.strokeStyle = "#f0bc6e";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                
+                currentX += dx;
+                currentY += dy;
+            }
+            
+            // Draw the final pen point
+            ctx.beginPath();
+            ctx.arc(currentX, currentY, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = "#ff9f4a";
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(currentX, currentY, 2.5, 0, 2 * Math.PI);
+            ctx.fillStyle = "#fff2cc";
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Add point to trail
+            drawingPoints.push({ x: currentX, y: currentY });
+            while (drawingPoints.length > trailLength) drawingPoints.shift();
+
+            ctx.restore(); // end zoom transform
+        }
+        
+        function animate() {
+            drawFrame();
+            time += 0.005 * speed;
+            if (time > 1) time -= 1;
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function resetAnimation() {
+            time = 0;
+            drawingPoints = [];
+            setStatus("🔄 Animation reset");
+        }
+        
+        function updateCoefficientsAndRedraw() {
+            if (originalPathRaw.length > 0) {
+                complexCoeffsGlobal = computeFourierCoeffs(originalPathRaw, maxCoeffs);
+                resetAnimation();
+                setStatus(`🔄 Epicycles: ${complexCoeffsGlobal.length} | Trail: ${trailLength}`);
+            }
+        }
+        
+        // ---- Event listeners ----
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) processImage(e.target.files[0]);
+        });
+        document.querySelector('.file-label').addEventListener('click', () => fileInput.click());
+        loadDemoBtn.addEventListener('click', () => { loadDemoStar(); });
+        loadCircleBtn.addEventListener('click', () => { loadDemoCircle(); });
+        resetBtn.addEventListener('click', () => resetAnimation());
+        
+        speedSlider.addEventListener('input', (e) => {
+            speed = parseFloat(e.target.value);
+            speedVal.innerText = speed.toFixed(2) + 'x';
+        });
+        
+        coeffSlider.addEventListener('input', (e) => {
+            maxCoeffs = parseInt(e.target.value);
+            coeffVal.innerText = maxCoeffs;
+            if (originalPathRaw.length) {
+                complexCoeffsGlobal = computeFourierCoeffs(originalPathRaw, maxCoeffs);
+                resetAnimation();
+            }
+        });
+        
+        trailSlider.addEventListener('input', (e) => {
+            trailLength = parseInt(e.target.value);
+            trailVal.innerText = trailLength;
+            while (drawingPoints.length > trailLength) drawingPoints.shift();
+        });
+        
+        scaleSlider.addEventListener('input', (e) => {
+            userScale = parseFloat(e.target.value);
+            scaleVal.innerText = userScale.toFixed(2);
+            if (originalPathRaw.length > 0) {
+                // Recompute shape transformation with new scale (but we need raw unscaled points? we have originalRawPoints stored before transform? we stored transformed. So better regenerate from raw contour stored earlier? But we lost it. Let's store raw unscaled points)
+                setStatus("Re-scale: please reload image or demo to apply new scale properly");
+            }
+        });
+
+        zoomSlider.addEventListener('input', (e) => {
+            zoomLevel = parseFloat(e.target.value);
+            zoomVal.innerText = zoomLevel.toFixed(2) + '×';
+        });
+        
+        // Improved scale handling: store raw unscaled points for demos
+        const originalRawUnscaledStar = () => {
+            const pts = [];
+            const outerR = 220, innerR = 90;
+            for (let i = 0; i <= 360; i += 5) {
+                let rad = i * Math.PI / 180;
+                let r = (i % 72) < 36 ? outerR : innerR;
+                pts.push({ x: Math.cos(rad) * r, y: Math.sin(rad) * r });
+            }
+            return pts;
+        };
+        
+        // Override initFromRawPoints to also store unscaled version for scaling updates
+        let lastUnscaledPoints = null;
+        const originalInit = initFromRawPoints;
+        window.initFromRawPoints = function(points) {
+            lastUnscaledPoints = points;
+            return originalInit(points);
+        }.bind(this);
+        
+        initFromRawPoints = function(points) {
+            lastUnscaledPoints = points;
+            if (!points || points.length === 0) return false;
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let p of points) {
+                minX = Math.min(minX, p.x);
+                maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y);
+                maxY = Math.max(maxY, p.y);
+            }
+            const contourCenterX = (minX + maxX) / 2;
+            const contourCenterY = (minY + maxY) / 2;
+            const contourWidth = maxX - minX;
+            const contourHeight = maxY - minY;
+            const margin = 70;
+            let fitScale = Math.min((width - 2*margin) / contourWidth, (height - 2*margin) / contourHeight);
+            fitScale = fitScale * userScale;
+            const transformed = points.map(p => ({
+                x: (p.x - contourCenterX) * fitScale + width/2,
+                y: (p.y - contourCenterY) * fitScale + height/2
+            }));
+            originalPathRaw = transformed;
+            complexCoeffsGlobal = computeFourierCoeffs(originalPathRaw, maxCoeffs);
+            time = 0;
+            drawingPoints = [];
+            if (animationId) cancelAnimationFrame(animationId);
+            animate();
+            return true;
+        };
+        
+        scaleSlider.addEventListener('input', (e) => {
+            userScale = parseFloat(e.target.value);
+            scaleVal.innerText = userScale.toFixed(2);
+            if (lastUnscaledPoints && lastUnscaledPoints.length) {
+                initFromRawPoints(lastUnscaledPoints);
+            }
+        });
+        
+        // Initialize with star demo
+        setTimeout(() => {
+            const starPoints = [];
+            const outerR = 210, innerR = 85;
+            for (let i = 0; i <= 360; i += 5) {
+                let rad = i * Math.PI / 180;
+                let r = (i % 72) < 36 ? outerR : innerR;
+                starPoints.push({ x: Math.cos(rad) * r, y: Math.sin(rad) * r });
+            }
+            lastUnscaledPoints = starPoints;
+            initFromRawPoints(starPoints);
+        }, 100);
+        // ---- Export: Video (WebM) & GIF ----
+        const exportBtn = document.getElementById('exportBtn');
+        const exportPanel = document.getElementById('exportPanel');
+        const recWebmBtn = document.getElementById('recWebmBtn');
+        const recGifBtn = document.getElementById('recGifBtn');
+        const recProgress = document.getElementById('recProgress');
+
+        exportBtn.addEventListener('click', () => {
+            exportPanel.style.display = exportPanel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        function setRecProgress(msg) {
+            recProgress.style.display = msg ? 'block' : 'none';
+            recProgress.textContent = msg;
+        }
+
+        function disableRecBtns(disabled) {
+            recWebmBtn.disabled = disabled;
+            recGifBtn.disabled = disabled;
+            recWebmBtn.style.opacity = disabled ? '0.5' : '1';
+            recGifBtn.style.opacity = disabled ? '0.5' : '1';
+        }
+
+        // How long one full cycle takes in ms
+        function getCycleDurationMs() {
+            // time advances by 0.005 * speed per frame (~60fps)
+            // full cycle = 1.0 / (0.005 * speed) frames
+            const fps = 60;
+            const framesPerCycle = 1.0 / (0.005 * speed);
+            return (framesPerCycle / fps) * 1000;
+        }
+
+        // --- WebM via MediaRecorder ---
+        recWebmBtn.addEventListener('click', () => {
+            if (!complexCoeffsGlobal || complexCoeffsGlobal.length === 0) {
+                setStatus("⚠️ Load a shape first before recording!", true);
+                return;
+            }
+            disableRecBtns(true);
+            const durationMs = Math.min(getCycleDurationMs(), 12000); // cap at 12s
+            setRecProgress(`⏺ Recording WebM… (${(durationMs/1000).toFixed(1)}s)`);
+
+            // Reset animation to start of cycle
+            time = 0;
+            drawingPoints = [];
+
+            const stream = canvas.captureStream(60);
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9' : 'video/webm';
+            const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5_000_000 });
+            const chunks = [];
+            recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'fourier_epicycles.webm';
+                a.click();
+                URL.revokeObjectURL(url);
+                setRecProgress('✅ WebM saved!');
+                setTimeout(() => setRecProgress(''), 3000);
+                disableRecBtns(false);
+            };
+
+            recorder.start();
+            setTimeout(() => recorder.stop(), durationMs);
+        });
+
+        // --- GIF via gif.js ---
+        recGifBtn.addEventListener('click', () => {
+            if (!complexCoeffsGlobal || complexCoeffsGlobal.length === 0) {
+                setStatus("⚠️ Load a shape first before recording!", true);
+                return;
+            }
+            if (typeof GIF === 'undefined') {
+                setStatus("⚠️ GIF library not loaded. Check internet connection.", true);
+                return;
+            }
+            disableRecBtns(true);
+
+            const fps = 30;
+            const durationMs = Math.min(getCycleDurationMs(), 8000); // cap GIF at 8s
+            const totalFrames = Math.round((durationMs / 1000) * fps);
+            const frameDelay = Math.round(1000 / fps);
+
+            setRecProgress(`🎞 Capturing ${totalFrames} frames…`);
+
+            // Reset animation
+            time = 0;
+            drawingPoints = [];
+
+            // Pause live animation
+            if (animationId) cancelAnimationFrame(animationId);
+
+            const gif = new GIF({
+                workers: 2,
+                quality: 8,
+                width: width,
+                height: height,
+                workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'
+            });
+
+            gif.on('progress', p => {
+                setRecProgress(`⚙️ Encoding GIF… ${Math.round(p * 100)}%`);
+            });
+
+            gif.on('finished', blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'fourier_epicycles.gif';
+                a.click();
+                URL.revokeObjectURL(url);
+                setRecProgress('✅ GIF saved!');
+                setTimeout(() => setRecProgress(''), 3000);
+                disableRecBtns(false);
+                // Resume live animation
+                animate();
+            });
+
+            // Capture frames synchronously by manually stepping time
+            const savedTime = time;
+            const timeStepPerFrame = (0.005 * speed) * (60 / fps);
+
+            let frame = 0;
+            function captureNextFrame() {
+                if (frame >= totalFrames) {
+                    setRecProgress(`⚙️ Encoding GIF… 0%`);
+                    gif.render();
+                    return;
+                }
+                drawFrame();
+                gif.addFrame(canvas, { copy: true, delay: frameDelay });
+                time += timeStepPerFrame;
+                if (time > 1) time -= 1;
+                frame++;
+                if (frame % 10 === 0) {
+                    setRecProgress(`🎞 Capturing frames… ${frame}/${totalFrames}`);
+                }
+                setTimeout(captureNextFrame, 0);
+            }
+            captureNextFrame();
+        });
+
+    })();
+</script>
+</body>
+</html>
